@@ -18,12 +18,12 @@ export default function Home() {
           </h2>
           <div className="home-cards">
             <Link href="/pre" className="home-card">
-              <h2>Pre-Trip</h2>
+              <h2>Pre-Inspection</h2>
               <p>Before deployment</p>
             </Link>
-            <Link href="/post" className="home-card">
-              <h2>Post-Trip</h2>
-              <p>On return</p>
+            <Link href="/post" className="home-card home-card-post">
+              <h2>POST INSPECTION</h2>
+              <p>On return — record return condition</p>
             </Link>
           </div>
         </div>

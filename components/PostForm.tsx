@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { POST_ITEMS } from "@/lib/items";
 import { InspectionList } from "@/components/InspectionList";
 import { PhotoEvidence } from "@/components/PhotoEvidence";
@@ -38,13 +38,41 @@ export default function PostForm() {
   }, []);
 
   const { fields, setField, items, setItem, evidence, removeEvidence } = form;
+  const [done, setDone] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const ok = await form.submit();
     if (ok) {
-      setTimeout(() => (window.location.href = "/"), 1200);
+      setDone(true);
     }
+  }
+
+  if (done) {
+    return (
+      <>
+        <header className="top">
+          <div className="brand">
+            <h1>Evergreen Logistics</h1>
+            <span>Post-Inspection</span>
+          </div>
+        </header>
+        <main>
+          <div className="card success-card">
+            <div className="success-icon">✓</div>
+            <h2>Post-inspection submitted</h2>
+            <p>
+              Your return report for <strong>{fields.vehicleNo || "this vehicle"}</strong> (driver:{" "}
+              {fields.driver || "—"}) on {fields.date || "today"} has been sent to the inspection
+              inbox. The draft and outbox were cleared for this form.
+            </p>
+            <a className="btn btn-primary" href="/">
+              Back to Home
+            </a>
+          </div>
+        </main>
+      </>
+    );
   }
 
   return (
@@ -104,15 +132,20 @@ export default function PostForm() {
                 onChange={(e) => setField("preState", e.target.value)}
               />
             </div>
-            <div className="field">
-              <label>Photo evidence on return</label>
-              <PhotoEvidence
-                suggested={["Front view", "Rear view", "Driver side", "Passenger side", "Odometer", "Damage close-up"]}
-                photos={evidence}
-                onChange={(list) => form.setEvidence(list)}
-                onRemove={removeEvidence}
-              />
-            </div>
+<div className="field">
+                <label>Return condition photos</label>
+                <p className="photo-notice">
+                  📷 Photos are <strong>saved on this device</strong> and are attached to the email when you
+                  submit. Use the <strong>⤴ Share</strong> button to send a photo via WhatsApp. Photos are
+                  stored only on this device — never on a server.
+                </p>
+                <PhotoEvidence
+                  suggested={["Front view", "Rear view", "Driver side", "Passenger side", "Odometer", "Damage close-up"]}
+                  photos={evidence}
+                  onChange={(list) => form.setEvidence(list)}
+                  onRemove={removeEvidence}
+                />
+              </div>
           </div>
 
           <div className="card">

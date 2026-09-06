@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import type { ItemDef, ItemState } from "@/lib/items";
 import type { EvidencePhoto } from "@/components/PhotoEvidence";
 import { submitToFormspree, downloadBackup } from "@/lib/submit";
+import type { SubmitItems } from "@/lib/submit";
 import { FORMSPREE_ENDPOINT } from "@/lib/config";
 import { saveDraft, draftKey, pushOutbox, rememberDraftKey, loadLatestDraft, clearLatestDraft } from "@/lib/store";
 import type { QueuedSubmission } from "@/lib/store";
+import { loadSavedPhoto } from "@/lib/images";
 
 export type ValidationEntry = { field: keyof FieldsState; label: string; rule: (v: string) => boolean };
 
@@ -32,6 +34,39 @@ function emptyItems(items: ItemDef[]): Record<string, ItemState> {
   return s;
 }
 
+// Convert live in-memory payload (Blob photos) into the stored/text form that
+// persists to localStorage: photo blobs stay in IndexedDB; here we keep only
+// their IDs (tiny strings) so drafts and the outbox can rehydrate images after
+// a reload. Blobs are never written to localStorage.
+function toStoredForm(payload: PayloadFull): QueuedSubmission {
+  const items: QueuedSubmission["items"] = {};
+  for (const [id, it] of Object.entries(payload.items)) {
+    items[id] = {
+      status: it.status,
+      note: it.note ?? "",
+      photos: (it.photos || []).map((p) => p.id),
+    };
+  }
+  return {
+    id: payload.id,
+    queuedAt: payload.queuedAt,
+    prefix: payload.prefix,
+    fields: payload.fields,
+    items,
+    evidence: payload.evidence.map((ev) => ({ caption: ev.caption, id: ev.photo.id })),
+  };
+}
+
+// Full in-memory payload carries Blob photo refs.
+type PayloadFull = {
+  id: string;
+  queuedAt: string;
+  prefix: string;
+  fields: Record<string, string>;
+  items: Record<string, ItemState>;
+  evidence: EvidencePhoto[];
+};
+
 export function useInspectionForm({ prefix, defaultFields, validation, extraFields }: Options) {
   const [fields, setFields] = useState<BaseFields>(() => defaultFields);
   const [items, setItems] = useState<Record<string, ItemState>>(() => emptyItems([]));
@@ -52,48 +87,68 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
 
   const removeEvidence = useCallback((i: number) => setEvidence((p) => p.filter((_, idx) => idx !== i)), []);
 
-  // Draft autosave (debounced).
+  // Draft autosave (debounced) — text + photo IDs only, never blobs in localStorage.
   useEffect(() => {
     const t = setTimeout(() => {
       const key = draftKey(prefix, fields.vehicleNo);
-      const entry: QueuedSubmission = {
+      const entry = toStoredForm({
         id: "draft",
         queuedAt: new Date().toISOString(),
         prefix,
         fields,
         items,
         evidence,
-      };
+      });
       saveDraft(key, entry);
       rememberDraftKey(prefix, key);
     }, 600);
     return () => clearTimeout(t);
   }, [fields, items, evidence, prefix]);
 
+  // Restore a text-only draft and rehydrate its photo blobs from IndexedDB.
   const restore = useCallback(
-    (itemDefs: ItemDef[]) => {
+    async (itemDefs: ItemDef[]): Promise<QueuedSubmission | null> => {
       const { key, value: draft } = loadLatestDraft<QueuedSubmission>(prefix);
-      if (draft) {
-        const base = emptyItems(itemDefs);
-        for (const id of itemDefs.map((d) => d.id)) {
-          if (draft.items[id]) {
-            const raw = draft.items[id].status;
-            const status: ItemState["status"] =
-              raw === "OK" || raw === "DEFECT" || raw === "N/A" || raw === "" ? raw : "";
-            base[id] = {
-              status,
-              note: draft.items[id].note ?? "",
-              photos: draft.items[id].photos ?? [],
-            };
-          }
-        }
-        setItems(base);
-        if (draft.fields) setFields(draft.fields);
-        if (draft.evidence) setEvidence(draft.evidence);
-      } else {
+      if (!draft) {
         setItems(emptyItems(itemDefs));
+        return null;
       }
-      return { draft, key };
+
+      const base = emptyItems(itemDefs);
+      const photoLookup = new Map<string, { id: string; blob: Blob }>();
+      await Promise.all(
+        Object.values(draft.items)
+          .flatMap((it) => it.photos || [])
+          .concat(draft.evidence.map((ev) => ev.id))
+          .filter(Boolean)
+          .map(async (pid) => {
+            const p = await loadSavedPhoto(pid);
+            if (p) photoLookup.set(pid, p);
+          }),
+      );
+
+      for (const id of itemDefs.map((d) => d.id)) {
+        const st = draft.items[id];
+        if (!st) continue;
+        const raw = st.status;
+        const status: ItemState["status"] =
+          raw === "OK" || raw === "DEFECT" || raw === "N/A" || raw === "" ? raw : "";
+        base[id] = {
+          status,
+          note: st.note ?? "",
+          photos: (st.photos || []).map((pid) => photoLookup.get(pid)).filter(Boolean) as ItemState["photos"],
+        };
+      }
+      setItems(base);
+      if (draft.fields) setFields(draft.fields);
+      const restoredEvidence = draft.evidence
+        .map((ev) => {
+          const p = photoLookup.get(ev.id);
+          return p ? { caption: ev.caption, photo: p } : null;
+        })
+        .filter(Boolean) as EvidencePhoto[];
+      setEvidence(restoredEvidence);
+      return draft;
     },
     [prefix],
   );
@@ -107,7 +162,7 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
   }, [fields, validation]);
 
   const buildPayload = useCallback(
-    (): QueuedSubmission => ({
+    (): PayloadFull => ({
       id: "", // assigned when queued
       queuedAt: new Date().toISOString(),
       prefix,
@@ -129,16 +184,26 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
     setJustQueued(false);
 
     const payload = buildPayload();
-    const result = await submitToFormspree(FORMSPREE_ENDPOINT, payload.fields, payload.items, prefix, payload.evidence);
+    const result = await submitToFormspree(
+      FORMSPREE_ENDPOINT,
+      payload.fields,
+      payload.items as unknown as SubmitItems,
+      prefix,
+      payload.evidence,
+    );
 
     if (result.ok) {
       clearLatestDraft(prefix);
+      // Photos intentionally stay saved on the device (IndexedDB) after a
+      // successful submit so staff can still share them via WhatsApp.
       setBusy(false);
       return true;
     }
 
     // Offline/failure → queue for retry and offer backup, never lose data.
-    pushOutbox(payload);
+    // The outbox stores text + photo IDs; blobs stay in IndexedDB so images
+    // survive and can be re-sent later.
+    pushOutbox(toStoredForm(payload));
     setJustQueued(true);
     setBusy(false);
     setError(`Network/Formspree error — ${result.message}. Saved to outbox; you can retry.`);
@@ -146,9 +211,12 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
   }, [validate, buildPayload, prefix]);
 
   const download = useCallback(
-    (filename?: string) => {
+    async (filename?: string) => {
       const payload = buildPayload();
-      downloadBackup(payload, filename || `${prefix}_${fields.vehicleNo || "vehicle"}_${fields.date || ""}.json`);
+      await downloadBackup(
+        payload,
+        filename || `${prefix}_${fields.vehicleNo || "vehicle"}_${fields.date || ""}.json`,
+      );
     },
     [buildPayload, prefix, fields],
   );

@@ -35,13 +35,26 @@ export function clearLatestDraft(prefix: string): void {
   }
 }
 
-export interface QueuedSubmission {
+// Photos are persisted on-device in IndexedDB as Blobs; localStorage stores
+// only small text plus photo IDs (never binary data). On restore/rehydrate we
+// load the blobs back by ID.
+export interface StoredSubmission {
   id: string;
   queuedAt: string;
   prefix: string;
   fields: Record<string, string>;
   items: Record<string, { status: string; note: string; photos: string[] }>;
-  evidence: { caption: string; dataUrl: string }[];
+  evidence: { caption: string; id: string }[];
+}
+
+export type QueuedSubmission = StoredSubmission;
+
+// Collect every photo ID referenced across a submission (items + evidence).
+export function collectPhotoIds(s: Pick<StoredSubmission, "items" | "evidence">): string[] {
+  const ids: string[] = [];
+  for (const it of Object.values(s.items)) ids.push(...(it.photos || []));
+  for (const ev of s.evidence) if (ev.id) ids.push(ev.id);
+  return ids;
 }
 
 const OUTBOX_KEY = "evergreen_outbox_v1";

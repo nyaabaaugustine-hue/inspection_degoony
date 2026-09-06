@@ -1,3 +1,5 @@
+import type { LocalPhoto } from "@/lib/images";
+
 export type ItemDef = { id: string; label: string };
 
 // Pre-Trip / Pre-Deployment checklist (21 items)
@@ -43,4 +45,4 @@ export const POST_ITEMS: ItemDef[] = [
 ];
 
 export type Status = "OK" | "DEFECT" | "N/A";
-export type ItemState = { status: Status | ""; note: string; photos: string[] };
+export type ItemState = { status: Status | ""; note: string; photos: LocalPhoto[] };

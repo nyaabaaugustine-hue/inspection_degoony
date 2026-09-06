@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import type { ItemDef, ItemState, Status } from "@/lib/items";
-import { addValidatedPhoto, MAX_PHOTOS_PER_FORM } from "@/lib/images";
+import { addValidatedPhoto, removeSavedPhoto, sharePhotos, savePhoto, MAX_PHOTOS_PER_FORM } from "@/lib/images";
+import type { LocalPhoto } from "@/lib/images";
 
 type Props = {
   items: ItemDef[];
@@ -22,16 +24,35 @@ export function InspectionList({
 }: Props) {
   const setStatus = (id: string, status: Status) => onChange(id, { status });
   const setNote = (id: string, note: string) => onChange(id, { note });
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  const showPhotoError = (msg: string) => {
+    setPhotoError(msg);
+    window.setTimeout(() => setPhotoError(null), 4000);
+  };
 
   const handleFile = async (id: string, file: File) => {
     const current = (state[id]?.photos || []).length;
     const res = await addValidatedPhoto(file, current);
-    if (!res.ok) return;
-    if (res.dataUrl) onChange(id, { photos: [...(state[id]?.photos || []), res.dataUrl] });
+    if (!res.ok) {
+      if (res.error === "too-many") showPhotoError("Photo limit reached (max 12).");
+      else if (res.error === "too-large") showPhotoError("Photo is too large — choose a smaller image.");
+      else showPhotoError("Could not read that image.");
+      return;
+    }
+    if (res.photo) onChange(id, { photos: [...(state[id]?.photos || []), res.photo] });
   };
 
-  const removePhoto = (id: string, idx: number) =>
+  const removePhoto = async (id: string, idx: number) => {
+    const target = (state[id]?.photos || [])[idx];
+    if (target) await removeSavedPhoto(target);
     onChange(id, { photos: (state[id]?.photos || []).filter((_, i) => i !== idx) });
+  };
+
+  const sharePhoto = async (photo: LocalPhoto) => {
+    const r = await sharePhotos([{ blob: photo.blob, name: `evergreen_${photo.id}.jpg` }]);
+    if (r === "unsupported") savePhoto(photo.blob, `evergreen_${photo.id}.jpg`);
+  };
 
   const counts = {
     ok: Object.values(state).filter((v) => v.status === "OK").length,
@@ -50,6 +71,8 @@ export function InspectionList({
           <b>{counts.defect}</b> {defectLabel}
         </span>
       </div>
+
+      {photoError && <div className="photo-error">{photoError}</div>}
 
       {items.map((it, index) => {
         const st = state[it.id] || { status: "", note: "", photos: [] };
@@ -85,9 +108,12 @@ export function InspectionList({
               <div className="photo-row">
                 {st.photos.map((p, i) => (
                   <div className="thumb-wrap" key={i}>
-                    <img src={p} alt={`photo-${it.id}-${i}`} className="thumb" />
+                    <img src={p.url} alt={`photo-${it.id}-${i}`} className="thumb" />
                     <button type="button" className="thumb-remove" onClick={() => removePhoto(it.id, i)}>
                       ×
+                    </button>
+                    <button type="button" className="thumb-share" onClick={() => sharePhoto(p)}>
+                      ⤴
                     </button>
                   </div>
                 ))}

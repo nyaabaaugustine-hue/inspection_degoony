@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { getOutbox, removeOutbox } from "@/lib/store";
 import type { QueuedSubmission } from "@/lib/store";
-import { submitToFormspree, downloadBackup } from "@/lib/submit";
+import { submitToFormspree, rehydrateEntryPhotos } from "@/lib/submit";
 import { FORMSPREE_ENDPOINT } from "@/lib/config";
 
 export default function Outbox() {
@@ -15,13 +15,8 @@ export default function Outbox() {
 
   const resubmit = async (entry: QueuedSubmission) => {
     setState((s) => ({ ...s, [entry.id]: "busy" }));
-    const result = await submitToFormspree(
-      FORMSPREE_ENDPOINT,
-      entry.fields,
-      entry.items,
-      entry.prefix,
-      entry.evidence,
-    );
+    const { items, resolvedEvidence } = await rehydrateEntryPhotos(entry.items, entry.evidence);
+    const result = await submitToFormspree(FORMSPREE_ENDPOINT, entry.fields, items, entry.prefix, resolvedEvidence);
     if (result.ok) {
       setEntries(removeOutbox(entry.id));
       setState((s) => ({ ...s, [entry.id]: "done" }));
@@ -37,10 +32,22 @@ export default function Outbox() {
     setEntries(removeOutbox(id));
   };
 
+  const downloadTextBackup = (entry: QueuedSubmission) => {
+    const blob = new Blob([JSON.stringify(entry, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${entry.prefix}_${entry.fields.vehicleNo || "vehicle"}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="card outbox">
       <h2>
-        Pending submissions<small>Saved locally — tap Retry to send when you&apos;re back online</small>
+        Pending submissions<small>Saved locally — photos stay on your device in IndexedDB and are included when the queued submission is retried.</small>
       </h2>
       {statusMsg && <div className="outbox-msg">{statusMsg}</div>}
       {entries.map((e) => (
@@ -54,14 +61,10 @@ export default function Outbox() {
             <small>{new Date(e.queuedAt).toLocaleString()}</small>
           </div>
           <div className="outbox-actions">
-            <button
-              className="btn btn-small"
-              disabled={state[e.id] === "busy"}
-              onClick={() => resubmit(e)}
-            >
+            <button className="btn btn-small" disabled={state[e.id] === "busy"} onClick={() => resubmit(e)}>
               {state[e.id] === "busy" ? "Sending…" : "Retry"}
             </button>
-            <button className="btn btn-small" onClick={() => downloadBackup(e, `${e.prefix}_${e.fields.vehicleNo || "vehicle"}.json`)}>
+            <button className="btn btn-small" onClick={() => downloadTextBackup(e)}>
               Backup
             </button>
             <button className="btn btn-small btn-danger" onClick={() => remove(e.id)}>
