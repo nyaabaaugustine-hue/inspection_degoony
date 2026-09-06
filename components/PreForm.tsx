@@ -1,0 +1,196 @@
+"use client";
+
+import { useEffect } from "react";
+import { PRE_ITEMS } from "@/lib/items";
+import { InspectionList } from "@/components/InspectionList";
+import { PhotoEvidence } from "@/components/PhotoEvidence";
+import { useInspectionForm } from "@/lib/useInspectionForm";
+
+export default function PreForm() {
+  const form = useInspectionForm({
+    prefix: "pre",
+    defaultFields: {
+      date: new Date().toISOString().slice(0, 10),
+      startTime: "",
+      driver: "",
+      vehicleNo: "",
+      trailerNo: "",
+      odometer: "",
+      inspector: "",
+      vehicleType: "",
+      existingDamage: "",
+      driverCert: "",
+      authorizerName: "",
+      supervisorDecision: "",
+    },
+    validation: [
+      { field: "date", label: "Date", rule: (v) => !!v.trim() },
+      { field: "driver", label: "Driver / Trainee", rule: (v) => !!v.trim() },
+      { field: "vehicleNo", label: "Vehicle / Unit No.", rule: (v) => !!v.trim() },
+    ],
+  });
+
+  useEffect(() => {
+    form.restore(PRE_ITEMS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const { fields, setField, items, setItem, evidence, removeEvidence } = form;
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const ok = await form.submit();
+    if (ok) {
+      setTimeout(() => (window.location.href = "/"), 1200);
+    }
+  }
+
+  return (
+    <>
+      <header className="top">
+        <div className="brand">
+          <h1>Evergreen Logistics</h1>
+          <span>Pre-Trip Inspection</span>
+        </div>
+      </header>
+
+      <main>
+        <form onSubmit={onSubmit}>
+          <div className="card">
+            <h2>
+              Vehicle &amp; driver<small>Complete before the vehicle is released</small>
+            </h2>
+            <div className="row2">
+              <div className="field">
+                <label>Date</label>
+                <input type="date" value={fields.date} onChange={(e) => setField("date", e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Start time</label>
+                <input type="time" value={fields.startTime} onChange={(e) => setField("startTime", e.target.value)} />
+              </div>
+            </div>
+            <div className="row2">
+              <div className="field">
+                <label>Driver / Trainee *</label>
+                <input type="text" value={fields.driver} onChange={(e) => setField("driver", e.target.value)} placeholder="Full name" />
+              </div>
+              <div className="field">
+                <label>Vehicle / Unit No. *</label>
+                <input type="text" value={fields.vehicleNo} onChange={(e) => setField("vehicleNo", e.target.value)} placeholder="e.g. DR-001" />
+              </div>
+            </div>
+            <div className="row2">
+              <div className="field">
+                <label>Trailer / Equipment No. (if applicable)</label>
+                <input type="text" value={fields.trailerNo} onChange={(e) => setField("trailerNo", e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Odometer reading</label>
+                <input type="text" inputMode="numeric" value={fields.odometer} onChange={(e) => setField("odometer", e.target.value)} />
+              </div>
+            </div>
+            <div className="row2">
+              <div className="field">
+                <label>Inspector / Authorized person</label>
+                <input type="text" value={fields.inspector} onChange={(e) => setField("inspector", e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Vehicle type</label>
+                <input type="text" value={fields.vehicleType} onChange={(e) => setField("vehicleType", e.target.value)} placeholder="e.g. Van / Truck" />
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2>
+              Pre-trip inspection<small>Mark each item OK, Defect, or N/A</small>
+            </h2>
+            <InspectionList
+              items={PRE_ITEMS}
+              showPhotos
+              state={items}
+              onChange={(id, patch) => setItem(id, patch)}
+            />
+          </div>
+
+          <div className="card">
+            <h2>
+              Existing damage / distinguishing marks<small>Record damage that already existed before departure</small>
+            </h2>
+            <div className="field">
+              <textarea
+                placeholder="Describe any dents, scratches or marks noted before departure"
+                value={fields.existingDamage}
+                onChange={(e) => setField("existingDamage", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label>Photo evidence</label>
+              <PhotoEvidence
+                suggested={["Front view", "Rear view", "Driver side", "Passenger side", "Odometer", "Damage close-up"]}
+                photos={evidence}
+                onChange={(list) => form.setEvidence(list)}
+                onRemove={removeEvidence}
+              />
+            </div>
+          </div>
+
+          <div className="card">
+            <h2>
+              Driver certification<small>I confirm I inspected this vehicle and truthfully recorded all defects, damage and abnormalities known at time of inspection</small>
+            </h2>
+            <div className="field">
+              <label>Driver signature (type full name)</label>
+              <input type="text" value={fields.driverCert} onChange={(e) => setField("driverCert", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="card">
+            <h2>
+              Supervisor release decision<small>Vehicle must be released by an authorized person</small>
+            </h2>
+            <div className="field">
+              <div className="radio-set">
+                {["Fit for operation", "Restricted — see instructions", "Do not deploy / out of service"].map(
+                  (opt) => (
+                    <label key={opt} className={`radio-opt${fields.supervisorDecision === opt ? " checked" : ""}`}>
+                      <input
+                        type="radio"
+                        name="pre_decision"
+                        value={opt}
+                        checked={fields.supervisorDecision === opt}
+                        onChange={() => setField("supervisorDecision", opt)}
+                      />
+                      {opt}
+                    </label>
+                  ),
+                )}
+              </div>
+            </div>
+            <div className="field">
+              <label>Supervisor / authorized person (signature)</label>
+              <input type="text" value={fields.authorizerName} onChange={(e) => setField("authorizerName", e.target.value)} />
+            </div>
+          </div>
+
+          {form.error && <div className="field-error">{form.error}</div>}
+
+          <footer className="submit-bar single">
+            <button className="btn btn-ghost" type="button" onClick={() => form.download()}>
+              Backup
+            </button>
+            <button className="btn btn-primary" type="submit" disabled={form.busy}>
+              {form.busy ? "Submitting…" : "Submit pre-trip"}
+            </button>
+          </footer>
+        </form>
+      </main>
+
+      {form.error && !form.justQueued && (
+        <div className="toast show error">{form.error}</div>
+      )}
+      {form.justQueued && <div className="toast show error">Saved offline — go back to retry from Home.</div>}
+    </>
+  );
+}
