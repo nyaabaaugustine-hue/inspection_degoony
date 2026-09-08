@@ -5,6 +5,7 @@ import { PRE_ITEMS } from "@/lib/items";
 import { InspectionList } from "@/components/InspectionList";
 import { PhotoEvidence } from "@/components/PhotoEvidence";
 import { useInspectionForm } from "@/lib/useInspectionForm";
+import HomeLink from "@/components/HomeLink";
 
 export default function PreForm() {
   const form = useInspectionForm({
@@ -50,9 +51,12 @@ export default function PreForm() {
     return (
       <>
         <header className="top">
-          <div className="brand">
-            <h1>Evergreen Logistics</h1>
-            <span>Pre-Trip Inspection</span>
+          <div className="header-row">
+            <div className="brand">
+              <h1>Evergreen Logistics</h1>
+              <span>Pre-Trip Inspection</span>
+            </div>
+            <HomeLink />
           </div>
         </header>
         <main>
@@ -61,8 +65,8 @@ export default function PreForm() {
             <h2>Pre-trip inspection submitted</h2>
             <p>
               Your report for <strong>{fields.vehicleNo || "this vehicle"}</strong> (driver:{" "}
-              {fields.driver || "—"}) on {fields.date || "today"} has been sent to the inspection
-              inbox. The draft and outbox were cleared for this form.
+              {fields.driver || "—"}) on {fields.date || "today"} has been saved to the DEGOONY
+              database. The draft and outbox were cleared for this form.
             </p>
             <a className="btn btn-primary" href="/">
               Back to Home
@@ -76,9 +80,12 @@ export default function PreForm() {
   return (
     <>
       <header className="top">
-        <div className="brand">
-          <h1>Evergreen Logistics</h1>
-          <span>Pre-Trip Inspection</span>
+        <div className="header-row">
+          <div className="brand">
+            <h1>Evergreen Logistics</h1>
+            <span>Pre-Trip Inspection</span>
+          </div>
+          <HomeLink />
         </div>
       </header>
 
@@ -156,9 +163,8 @@ export default function PreForm() {
             <div className="field">
               <label>Photo evidence</label>
               <p className="photo-notice">
-                📷 Photos are <strong>saved on this device</strong> and are attached to the email when you
-                submit. Use the <strong>⤴ Share</strong> button to send a photo via WhatsApp. Photos are
-                stored only on this device — never on a server.
+                📷 Photos are <strong>uploaded to the DEGOONY database</strong> with your report,
+                and kept on this device so you can also <strong>⤴ Share</strong> them via WhatsApp.
               </p>
               <PhotoEvidence
                 suggested={["Front view", "Rear view", "Driver side", "Passenger side", "Odometer", "Damage close-up"]}

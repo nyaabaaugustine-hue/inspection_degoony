@@ -5,6 +5,7 @@ import { POST_ITEMS } from "@/lib/items";
 import { InspectionList } from "@/components/InspectionList";
 import { PhotoEvidence } from "@/components/PhotoEvidence";
 import { useInspectionForm } from "@/lib/useInspectionForm";
+import HomeLink from "@/components/HomeLink";
 
 export default function PostForm() {
   const form = useInspectionForm({
@@ -29,6 +30,11 @@ export default function PostForm() {
       { field: "date", label: "Date", rule: (v) => !!v.trim() },
       { field: "driver", label: "Driver / Trainee", rule: (v) => !!v.trim() },
       { field: "vehicleNo", label: "Vehicle / Unit No.", rule: (v) => !!v.trim() },
+      {
+        field: "variance",
+        label: "Mandatory variance question (accident/incident/change)",
+        rule: (v) => !!v.trim(),
+      },
     ],
   });
 
@@ -52,9 +58,12 @@ export default function PostForm() {
     return (
       <>
         <header className="top">
-          <div className="brand">
-            <h1>Evergreen Logistics</h1>
-            <span>Post-Inspection</span>
+          <div className="header-row">
+            <div className="brand">
+              <h1>Evergreen Logistics</h1>
+              <span>Post-Inspection</span>
+            </div>
+            <HomeLink />
           </div>
         </header>
         <main>
@@ -63,8 +72,8 @@ export default function PostForm() {
             <h2>Post-inspection submitted</h2>
             <p>
               Your return report for <strong>{fields.vehicleNo || "this vehicle"}</strong> (driver:{" "}
-              {fields.driver || "—"}) on {fields.date || "today"} has been sent to the inspection
-              inbox. The draft and outbox were cleared for this form.
+              {fields.driver || "—"}) on {fields.date || "today"} has been saved to the DEGOONY
+              database. The draft and outbox were cleared for this form.
             </p>
             <a className="btn btn-primary" href="/">
               Back to Home
@@ -78,9 +87,12 @@ export default function PostForm() {
   return (
     <>
       <header className="top">
-        <div className="brand">
-          <h1>Evergreen Logistics</h1>
-          <span>Post-Trip Inspection</span>
+        <div className="header-row">
+          <div className="brand">
+            <h1>Evergreen Logistics</h1>
+            <span>Post-Trip Inspection</span>
+          </div>
+          <HomeLink />
         </div>
       </header>
 
@@ -135,9 +147,8 @@ export default function PostForm() {
 <div className="field">
                 <label>Return condition photos</label>
                 <p className="photo-notice">
-                  📷 Photos are <strong>saved on this device</strong> and are attached to the email when you
-                  submit. Use the <strong>⤴ Share</strong> button to send a photo via WhatsApp. Photos are
-                  stored only on this device — never on a server.
+                  📷 Photos are <strong>uploaded to the DEGOONY database</strong> with your report,
+                  and kept on this device so you can also <strong>⤴ Share</strong> them via WhatsApp.
                 </p>
                 <PhotoEvidence
                   suggested={["Front view", "Rear view", "Driver side", "Passenger side", "Odometer", "Damage close-up"]}

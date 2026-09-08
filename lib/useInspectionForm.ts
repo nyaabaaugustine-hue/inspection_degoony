@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ItemDef, ItemState } from "@/lib/items";
 import type { EvidencePhoto } from "@/components/PhotoEvidence";
-import { submitToFormspree, downloadBackup } from "@/lib/submit";
+import { submitToBaserow, downloadBackup } from "@/lib/submit";
 import type { SubmitItems } from "@/lib/submit";
-import { FORMSPREE_ENDPOINT } from "@/lib/config";
+import { INSPECTION_TABLE_ID, DRIVER_TABLE_ID } from "@/lib/config";
 import { saveDraft, draftKey, pushOutbox, rememberDraftKey, loadLatestDraft, clearLatestDraft } from "@/lib/store";
 import type { QueuedSubmission } from "@/lib/store";
 import { loadSavedPhoto } from "@/lib/images";
+import type { LocalPhoto } from "@/lib/images";
 
 export type ValidationEntry = { field: keyof FieldsState; label: string; rule: (v: string) => boolean };
 
@@ -21,11 +22,19 @@ export interface FieldsState {
   [k: string]: string;
 }
 
-interface Options {
+export interface FormOptions {
   prefix: string;
   defaultFields: BaseFields;
   validation: ValidationEntry[];
   extraFields?: (fields: BaseFields) => Record<string, string>;
+  // Custom subject/form type labels for outbox retries.
+  subject?: (fields: BaseFields) => string;
+  formType?: string;
+}
+
+// Baserow destination table for a form prefix.
+function tableIdForPrefix(prefix: string): number {
+  return prefix === "driver" ? DRIVER_TABLE_ID : INSPECTION_TABLE_ID;
 }
 
 function emptyItems(items: ItemDef[]): Record<string, ItemState> {
@@ -38,7 +47,7 @@ function emptyItems(items: ItemDef[]): Record<string, ItemState> {
 // persists to localStorage: photo blobs stay in IndexedDB; here we keep only
 // their IDs (tiny strings) so drafts and the outbox can rehydrate images after
 // a reload. Blobs are never written to localStorage.
-function toStoredForm(payload: PayloadFull): QueuedSubmission {
+function toStoredForm(payload: PayloadFull, opts: FormOptions): QueuedSubmission {
   const items: QueuedSubmission["items"] = {};
   for (const [id, it] of Object.entries(payload.items)) {
     items[id] = {
@@ -51,9 +60,13 @@ function toStoredForm(payload: PayloadFull): QueuedSubmission {
     id: payload.id,
     queuedAt: payload.queuedAt,
     prefix: payload.prefix,
+    tableId: tableIdForPrefix(opts.prefix),
+    subject: opts.subject ? opts.subject(payload.fields) : undefined,
+    formType: opts.formType,
     fields: payload.fields,
     items,
     evidence: payload.evidence.map((ev) => ({ caption: ev.caption, id: ev.photo.id })),
+    primaryPhoto: payload.primaryPhoto ? payload.primaryPhoto.id : undefined,
   };
 }
 
@@ -65,12 +78,14 @@ type PayloadFull = {
   fields: Record<string, string>;
   items: Record<string, ItemState>;
   evidence: EvidencePhoto[];
+  primaryPhoto: LocalPhoto | null;
 };
 
-export function useInspectionForm({ prefix, defaultFields, validation, extraFields }: Options) {
+export function useInspectionForm({ prefix, defaultFields, validation, extraFields, subject, formType }: FormOptions) {
   const [fields, setFields] = useState<BaseFields>(() => defaultFields);
   const [items, setItems] = useState<Record<string, ItemState>>(() => emptyItems([]));
   const [evidence, setEvidence] = useState<EvidencePhoto[]>([]);
+  const [primaryPhoto, setPrimaryPhoto] = useState<LocalPhoto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [justQueued, setJustQueued] = useState(false);
@@ -90,20 +105,24 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
   // Draft autosave (debounced) — text + photo IDs only, never blobs in localStorage.
   useEffect(() => {
     const t = setTimeout(() => {
-      const key = draftKey(prefix, fields.vehicleNo);
-      const entry = toStoredForm({
-        id: "draft",
-        queuedAt: new Date().toISOString(),
-        prefix,
-        fields,
-        items,
-        evidence,
-      });
+      const key = draftKey(prefix, fields.vehicleNo || fields.fullName || "");
+      const entry = toStoredForm(
+        {
+          id: "draft",
+          queuedAt: new Date().toISOString(),
+          prefix,
+          fields,
+          items,
+          evidence,
+          primaryPhoto,
+        },
+        { prefix, defaultFields, validation, extraFields, subject, formType },
+      );
       saveDraft(key, entry);
       rememberDraftKey(prefix, key);
     }, 600);
     return () => clearTimeout(t);
-  }, [fields, items, evidence, prefix]);
+  }, [fields, items, evidence, primaryPhoto, prefix, subject, formType, defaultFields, validation, extraFields]);
 
   // Restore a text-only draft and rehydrate its photo blobs from IndexedDB.
   const restore = useCallback(
@@ -115,11 +134,12 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
       }
 
       const base = emptyItems(itemDefs);
-      const photoLookup = new Map<string, { id: string; blob: Blob }>();
+      const photoLookup = new Map<string, LocalPhoto>();
       await Promise.all(
         Object.values(draft.items)
           .flatMap((it) => it.photos || [])
           .concat(draft.evidence.map((ev) => ev.id))
+          .concat(draft.primaryPhoto ? [draft.primaryPhoto] : [])
           .filter(Boolean)
           .map(async (pid) => {
             const p = await loadSavedPhoto(pid);
@@ -148,6 +168,10 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
         })
         .filter(Boolean) as EvidencePhoto[];
       setEvidence(restoredEvidence);
+      if (draft.primaryPhoto) {
+        const p = photoLookup.get(draft.primaryPhoto);
+        setPrimaryPhoto(p || null);
+      }
       return draft;
     },
     [prefix],
@@ -169,11 +193,12 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
       fields: { ...fields, ...(extraFields ? extraFields(fields) : {}) },
       items,
       evidence,
+      primaryPhoto,
     }),
-    [fields, items, evidence, prefix, extraFields],
+    [fields, items, evidence, primaryPhoto, prefix, extraFields],
   );
 
-  const submit = useCallback(async (): Promise<boolean> => {
+const submit = useCallback(async (): Promise<boolean> => {
     const errMsg = validate();
     if (errMsg) {
       setError(errMsg);
@@ -184,12 +209,14 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
     setJustQueued(false);
 
     const payload = buildPayload();
-    const result = await submitToFormspree(
-      FORMSPREE_ENDPOINT,
+    const result = await submitToBaserow(
+      tableIdForPrefix(prefix),
       payload.fields,
       payload.items as unknown as SubmitItems,
       prefix,
       payload.evidence,
+      subject ? subject(payload.fields) : undefined,
+      payload.primaryPhoto,
     );
 
     if (result.ok) {
@@ -203,19 +230,20 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
     // Offline/failure → queue for retry and offer backup, never lose data.
     // The outbox stores text + photo IDs; blobs stay in IndexedDB so images
     // survive and can be re-sent later.
-    pushOutbox(toStoredForm(payload));
+    pushOutbox(toStoredForm(payload, { prefix, defaultFields, validation, extraFields, subject, formType }));
     setJustQueued(true);
     setBusy(false);
-    setError(`Network/Formspree error — ${result.message}. Saved to outbox; you can retry.`);
+    setError(`Baserow error — ${result.message}. Saved to outbox; you can retry.`);
     return false;
-  }, [validate, buildPayload, prefix]);
+  }, [validate, buildPayload, prefix, subject, formType, defaultFields, validation, extraFields]);
 
   const download = useCallback(
     async (filename?: string) => {
       const payload = buildPayload();
+      const ref = fields.vehicleNo || fields.fullName || "submission";
       await downloadBackup(
         payload,
-        filename || `${prefix}_${fields.vehicleNo || "vehicle"}_${fields.date || ""}.json`,
+        filename || `${prefix}_${ref}_${fields.date || ""}.json`,
       );
     },
     [buildPayload, prefix, fields],
@@ -225,6 +253,7 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
     fields,
     items,
     evidence,
+    primaryPhoto,
     error,
     busy,
     justQueued,
@@ -233,6 +262,7 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
     setItem,
     setEvidence: setEvidenceList,
     removeEvidence,
+    setPrimaryPhoto,
     restore,
     submit,
     download,

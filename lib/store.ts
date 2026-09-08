@@ -42,18 +42,26 @@ export interface StoredSubmission {
   id: string;
   queuedAt: string;
   prefix: string;
+  // Baserow destination table ID this entry belongs to, so the outbox retry
+  // can resubmit to the correct table (inspection vs driver registration).
+  tableId?: number;
+  formType?: string;
+  subject?: string;
   fields: Record<string, string>;
   items: Record<string, { status: string; note: string; photos: string[] }>;
   evidence: { caption: string; id: string }[];
+  // Driver portrait photo (photo ID), distinct from item/evidence photos.
+  primaryPhoto?: string;
 }
 
 export type QueuedSubmission = StoredSubmission;
 
 // Collect every photo ID referenced across a submission (items + evidence).
-export function collectPhotoIds(s: Pick<StoredSubmission, "items" | "evidence">): string[] {
+export function collectPhotoIds(s: Pick<StoredSubmission, "items" | "evidence" | "primaryPhoto">): string[] {
   const ids: string[] = [];
   for (const it of Object.values(s.items)) ids.push(...(it.photos || []));
   for (const ev of s.evidence) if (ev.id) ids.push(ev.id);
+  if (s.primaryPhoto) ids.push(s.primaryPhoto);
   return ids;
 }
 

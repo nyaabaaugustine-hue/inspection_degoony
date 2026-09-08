@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { getOutbox, removeOutbox } from "@/lib/store";
 import type { QueuedSubmission } from "@/lib/store";
-import { submitToFormspree, rehydrateEntryPhotos } from "@/lib/submit";
-import { FORMSPREE_ENDPOINT } from "@/lib/config";
+import { submitToBaserow, rehydrateEntryPhotos } from "@/lib/submit";
+import { INSPECTION_TABLE_ID, DRIVER_TABLE_ID } from "@/lib/config";
 
 export default function Outbox() {
   const [entries, setEntries] = useState<QueuedSubmission[]>(() => getOutbox());
@@ -13,10 +13,22 @@ export default function Outbox() {
 
   if (entries.length === 0) return null;
 
+  const kindLabel = (prefix: string) =>
+    prefix === "pre" ? "PRE" : prefix === "post" ? "POST" : "DRIVER";
+
   const resubmit = async (entry: QueuedSubmission) => {
     setState((s) => ({ ...s, [entry.id]: "busy" }));
-    const { items, resolvedEvidence } = await rehydrateEntryPhotos(entry.items, entry.evidence);
-    const result = await submitToFormspree(FORMSPREE_ENDPOINT, entry.fields, items, entry.prefix, resolvedEvidence);
+    const tableId = entry.tableId ?? (entry.prefix === "driver" ? DRIVER_TABLE_ID : INSPECTION_TABLE_ID);
+    const { items, resolvedEvidence, resolvedPrimaryPhoto } = await rehydrateEntryPhotos(entry.items, entry.evidence, entry.primaryPhoto);
+    const result = await submitToBaserow(
+      tableId,
+      entry.fields,
+      items,
+      entry.prefix,
+      resolvedEvidence,
+      entry.subject,
+      resolvedPrimaryPhoto,
+    );
     if (result.ok) {
       setEntries(removeOutbox(entry.id));
       setState((s) => ({ ...s, [entry.id]: "done" }));
@@ -37,7 +49,7 @@ export default function Outbox() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${entry.prefix}_${entry.fields.vehicleNo || "vehicle"}.json`;
+    a.download = `${entry.prefix}_${entry.fields.vehicleNo || entry.fields.fullName || "submission"}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -47,16 +59,16 @@ export default function Outbox() {
   return (
     <div className="card outbox">
       <h2>
-        Pending submissions<small>Saved locally — photos stay on your device in IndexedDB and are included when the queued submission is retried.</small>
+        Pending submissions<small>Saved locally — retry stores the text and photos in the DEGOONY database.</small>
       </h2>
       {statusMsg && <div className="outbox-msg">{statusMsg}</div>}
       {entries.map((e) => (
         <div className="outbox-item" key={e.id}>
           <div className="outbox-meta">
-            <span className={`pill-mini ${e.prefix === "pre" ? "pre" : "post"}`}>
-              {e.prefix === "pre" ? "PRE" : "POST"}
+            <span className={`pill-mini ${e.prefix === "pre" ? "pre" : e.prefix === "post" ? "post" : "driver"}`}>
+              {kindLabel(e.prefix)}
             </span>
-            <b>{e.fields.vehicleNo || "—"}</b>
+            <b>{e.fields.vehicleNo || e.fields.fullName || "—"}</b>
             <span>{e.fields.driver || ""}</span>
             <small>{new Date(e.queuedAt).toLocaleString()}</small>
           </div>

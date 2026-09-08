@@ -12,20 +12,20 @@ export default function Home() {
       </header>
       <main>
         <Outbox />
-        <div className="card">
-          <h2>
-            Vehicle Inspection Evidence<small>Choose an inspection to record. All evidence is emailed to the inspection inbox.</small>
-          </h2>
-          <div className="home-cards">
-            <Link href="/pre" className="home-card">
-              <h2>Pre-Inspection</h2>
-              <p>Before deployment</p>
-            </Link>
-            <Link href="/post" className="home-card home-card-post">
-              <h2>POST INSPECTION</h2>
-              <p>On return — record return condition</p>
-            </Link>
-          </div>
+        <div className="launch-menu">
+          <Link href="/inspect" className="launch-btn launch-inspect">
+            <span className="launch-icon">🛡️</span>
+            <span className="launch-label">INSPECTION</span>
+            <span className="launch-sub">Pre &amp; post vehicle checks</span>
+          </Link>
+          <Link href="/driver" className="launch-btn launch-driver">
+            <span className="launch-icon">🚚</span>
+            <span className="launch-label">DRIVER REGISTRATION</span>
+            <span className="launch-sub">Job application &amp; interview form</span>
+          </Link>
+        </div>
+        <div className="records-link">
+          <Link href="/records" className="home-link-row">View saved submissions</Link>
         </div>
       </main>
     </>
