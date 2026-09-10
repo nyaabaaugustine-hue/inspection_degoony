@@ -265,6 +265,7 @@ export default function RecordsPage() {
 
           {rows.map((row) => {
             const photos = photosOf(row.photos);
+            const profilePhoto = photos.length > 0 ? photos[0] : null;
             const entries = Object.entries(row).filter(
               ([k, v]) => !["id", "created_on", "updated_on", "photos"].includes(k) && asText(v) !== null,
             );
@@ -276,6 +277,9 @@ export default function RecordsPage() {
             return (
               <div className="record-card" key={String(row.id ?? Math.random())}>
                 <div className="record-title">
+                  {profilePhoto && (
+                    <img src={profilePhoto.url} alt={String(title)} className="record-profile" />
+                  )}
                   <span className="record-name">{title}</span>
                   {kind && <span className="tag tag-unchanged">{kind}</span>}
                 </div>
