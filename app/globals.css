@@ -263,7 +263,7 @@ footer.submit-bar.single{max-width:712px;margin:0 auto;left:0;right:0;border-rad
 }
 .success-card h2{margin-bottom:8px;color:var(--pine-900);}
 .success-card p{color:var(--muted);max-width:460px;margin:0 auto 22px;line-height:1.6;font-size:14px;}
-.success-card .btn{display:inline-block;flex:0 0 auto;padding:13px 26px;}
+.success-card .btn{display:inline-block;flex:0 0 auto;padding:13px 26px;margin-bottom:18px;}
 
 /* ---------- Outbox ---------- */
 .outbox{border:1px solid rgba(185,121,8,.38);border-left:4px solid var(--amber);}
@@ -408,10 +408,12 @@ footer.submit-bar.single{max-width:712px;margin:0 auto;left:0;right:0;border-rad
   border:2px dashed var(--line-strong);background:var(--surface-2);
   cursor:pointer;display:flex;align-items:center;justify-content:center;
   transition:border-color .15s ease, background .15s ease;
-  overflow:hidden;
+  overflow:hidden;margin:0;font-family:inherit;
+  -webkit-appearance:none;appearance:none;
 }
 .record-profile-btn:hover{border-color:var(--emerald);background:#EFF8F3;}
 .record-profile-btn.has-photo{border-style:solid;border-color:var(--line-strong);cursor:pointer;}
+.record-profile-btn.has-photo .record-profile{width:46px;height:46px;border:none;}
 .record-profile-btn:disabled{opacity:.6;cursor:wait;}
 .record-profile-empty{
   font-size:18px;line-height:1;color:var(--muted-2);
