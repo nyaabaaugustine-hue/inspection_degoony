@@ -31,13 +31,21 @@ async function uploadPhoto(
   blob: Blob,
   name: string,
 ): Promise<Record<string, unknown> | null> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 25_000);
   try {
     const fd = new FormData();
     fd.append("file", blob, name);
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: fd,
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/upload", {
+        method: "POST",
+        body: fd,
+        signal: ac.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!res.ok) return null;
     const js = (await res.json()) as Record<string, unknown>;
     if (!js.name && !js.url) return null;
@@ -158,12 +166,23 @@ for (const [k, v] of Object.entries(row)) {
   if (v !== "") clean[k] = v;
 }
 
+  // Client-side timeout guard: if the server proxy hangs (e.g. upstream
+  // Baserow unreachable), the form saves to the outbox instead of spinning
+  // forever.
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 25_000);
   try {
-    const res = await fetch("/api/rows", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tableId, row: clean }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/rows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tableId, row: clean }),
+        signal: ac.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     const data = (await res.json().catch(() => null)) as {
       ok?: boolean;
       message?: string;
@@ -174,6 +193,10 @@ for (const [k, v] of Object.entries(row)) {
     }
     return { ok: true, message: "Saved to DEGOONY database." };
   } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return { ok: false, message: "Baserow timed out — check your connection." };
+    }
     return { ok: false, message: err instanceof Error ? err.message : "Network error" };
   }
 }

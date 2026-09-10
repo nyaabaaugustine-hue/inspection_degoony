@@ -19,10 +19,17 @@ export async function GET(req: NextRequest) {
     return okResponse({ results: [], error: "Invalid table." });
   }
   try {
-    const res = await fetch(
-      `${baserow.base}/api/database/rows/table/${table}/?user_field_names=true&include=photos&size=100`,
-      { headers: HEADERS },
-    );
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 15_000);
+    let res: Response;
+    try {
+      res = await fetch(
+        `${baserow.base}/api/database/rows/table/${table}/?user_field_names=true&include=photos&size=100`,
+        { headers: HEADERS, signal: ac.signal },
+      );
+    } finally {
+      clearTimeout(timer);
+    }
     if (!res.ok) return okResponse({ results: [], error: `Baserow ${res.status}` });
     return okResponse(await res.json());
   } catch {
@@ -48,14 +55,22 @@ export async function PATCH(req: NextRequest) {
     return okResponse({ ok: false, message: "Bad request body." });
   }
   try {
-    const res = await fetch(
-      `${baserow.base}/api/database/rows/table/${tableId}/${rowId}/?user_field_names=true`,
-      {
-        method: "PATCH",
-        headers: { ...HEADERS, "Content-Type": "application/json" },
-        body: JSON.stringify(row),
-      },
-    );
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 20_000);
+    let res: Response;
+    try {
+      res = await fetch(
+        `${baserow.base}/api/database/rows/table/${tableId}/${rowId}/?user_field_names=true`,
+        {
+          method: "PATCH",
+          headers: { ...HEADERS, "Content-Type": "application/json" },
+          body: JSON.stringify(row),
+          signal: ac.signal,
+        },
+      );
+    } finally {
+      clearTimeout(timer);
+    }
     const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
     if (!res.ok) {
       const msg =
@@ -87,14 +102,22 @@ export async function POST(req: NextRequest) {
     return okResponse({ ok: false, message: "Bad request body." });
   }
   try {
-    const res = await fetch(
-      `${baserow.base}/api/database/rows/table/${tableId}/?user_field_names=true`,
-      {
-        method: "POST",
-        headers: { ...HEADERS, "Content-Type": "application/json" },
-        body: JSON.stringify(row),
-      },
-    );
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 20_000);
+    let res: Response;
+    try {
+      res = await fetch(
+        `${baserow.base}/api/database/rows/table/${tableId}/?user_field_names=true`,
+        {
+          method: "POST",
+          headers: { ...HEADERS, "Content-Type": "application/json" },
+          body: JSON.stringify(row),
+          signal: ac.signal,
+        },
+      );
+    } finally {
+      clearTimeout(timer);
+    }
     const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
     if (!res.ok) {
       const msg =
