@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import HomeLink from "@/components/HomeLink";
 import { INSPECTION_TABLE_ID, DRIVER_TABLE_ID } from "@/lib/config";
@@ -131,6 +131,10 @@ export default function RecordsPage() {
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState<number | null>(null);
+  const [driverPhotoMap, setDriverPhotoMap] = useState<Record<string, string>>({});
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadTarget, setUploadTarget] = useState<{ tableId: number; rowId: number; existing: { url: string; name?: string }[] } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,6 +156,49 @@ export default function RecordsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Build a name→photo map from driver records so inspection cards can show
+  // the driver's portrait even though inspection rows don't store it.
+  useEffect(() => {
+    const map: Record<string, string> = {};
+    for (const drv of data.driver) {
+      const name = asText(drv.full_name);
+      const photos = photosOf(drv.photos);
+      if (name && photos.length > 0) {
+        map[name.toLowerCase().trim()] = photos[0].url;
+      }
+    }
+    setDriverPhotoMap(map);
+  }, [data.driver]);
+
+  const onProfilePhotoPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadTarget) return;
+    setPhotoBusy(uploadTarget.rowId);
+    try {
+      const fd = new FormData();
+      fd.append("file", file, file.name);
+      const upRes = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!upRes.ok) throw new Error("Upload failed");
+      const fileRef = (await upRes.json()) as { url: string; name?: string };
+      const photos = [...uploadTarget.existing, { url: fileRef.url, name: fileRef.name || file.name }];
+      const patchRes = await fetch("/api/rows", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tableId: uploadTarget.tableId, rowId: uploadTarget.rowId, row: { photos } }),
+      });
+      const js = (await patchRes.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+      if (!patchRes.ok || !js?.ok) throw new Error(js?.message || "Save failed");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save photo.");
+      setTimeout(() => setError(null), 4000);
+    } finally {
+      setPhotoBusy(null);
+      setUploadTarget(null);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   const openEdit = (row: Rec) => {
     const id = typeof row.id === "number" ? row.id : Number(row.id);
@@ -265,7 +312,11 @@ export default function RecordsPage() {
 
           {rows.map((row) => {
             const photos = photosOf(row.photos);
-            const profilePhoto = photos.length > 0 ? photos[0] : null;
+            const recordProfile = photos.length > 0 ? photos[0] : null;
+            const driverName = asText(row.driver_name) || asText(row.full_name) || "";
+            const lookupKey = driverName.toLowerCase().trim();
+            const fallbackPhoto = !recordProfile && driverPhotoMap[lookupKey] ? driverPhotoMap[lookupKey] : null;
+            const profileUrl = recordProfile?.url || fallbackPhoto;
             const entries = Object.entries(row).filter(
               ([k, v]) => !["id", "created_on", "updated_on", "photos"].includes(k) && asText(v) !== null,
             );
@@ -274,12 +325,27 @@ export default function RecordsPage() {
               asText(row.full_name) ||
               `${tab === "inspection" ? "Inspection" : "Driver"} record`;
             const kind = asText(row.form_type);
+            const rowId = typeof row.id === "number" ? row.id : Number(row.id);
+            const tableId = tab === "driver" ? DRIVER_TABLE_ID : INSPECTION_TABLE_ID;
             return (
               <div className="record-card" key={String(row.id ?? Math.random())}>
                 <div className="record-title">
-                  {profilePhoto && (
-                    <img src={profilePhoto.url} alt={String(title)} className="record-profile" />
-                  )}
+                  <button
+                    type="button"
+                    className={`record-profile-btn${profileUrl ? " has-photo" : ""}`}
+                    disabled={photoBusy === rowId}
+                    title="Upload profile photo"
+                    onClick={() => {
+                      setUploadTarget({ tableId, rowId, existing: photos });
+                      fileRef.current?.click();
+                    }}
+                  >
+                    {profileUrl ? (
+                      <img src={profileUrl} alt={String(title)} className="record-profile" />
+                    ) : (
+                      <span className="record-profile-empty">{photoBusy === rowId ? "…" : "📷"}</span>
+                    )}
+                  </button>
                   <span className="record-name">{title}</span>
                   {kind && <span className="tag tag-unchanged">{kind}</span>}
                 </div>
@@ -378,6 +444,14 @@ export default function RecordsPage() {
             );
           })}
         </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{ display: "none" }}
+          onChange={onProfilePhotoPick}
+        />
       </main>
     </>
   );

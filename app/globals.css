@@ -401,7 +401,20 @@ footer.submit-bar.single{max-width:712px;margin:0 auto;left:0;right:0;border-rad
 .record-name{font-size:15px;font-weight:750;color:var(--pine-900);flex:1;}
 .record-profile{
   width:46px;height:46px;border-radius:50%;object-fit:cover;flex:none;
-  border:2px solid var(--line-strong);box-shadow:var(--shadow-sm);
+  border:2px solid var(--line-strong);box-shadow:var(--shadow-sm);display:block;
+}
+.record-profile-btn{
+  width:46px;height:46px;border-radius:50%;flex:none;padding:0;
+  border:2px dashed var(--line-strong);background:var(--surface-2);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:border-color .15s ease, background .15s ease;
+  overflow:hidden;
+}
+.record-profile-btn:hover{border-color:var(--emerald);background:#EFF8F3;}
+.record-profile-btn.has-photo{border-style:solid;border-color:var(--line-strong);cursor:pointer;}
+.record-profile-btn:disabled{opacity:.6;cursor:wait;}
+.record-profile-empty{
+  font-size:18px;line-height:1;color:var(--muted-2);
 }
 .record-meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
 .record-chip{
