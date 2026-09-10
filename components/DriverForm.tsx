@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PhotoEvidence } from "@/components/PhotoEvidence";
 import { useInspectionForm } from "@/lib/useInspectionForm";
 import HomeLink from "@/components/HomeLink";
+import ShareButtons from "@/components/ShareButtons";
 import { addValidatedPhoto, removeSavedPhoto } from "@/lib/images";
 import type { LocalPhoto } from "@/lib/images";
 
@@ -106,6 +107,12 @@ export default function DriverForm() {
             <a className="btn btn-primary" href="/">
               Back to Home
             </a>
+            <ShareButtons
+              formType="Driver Registration"
+              fields={fields}
+              items={{}}
+              evidence={evidence}
+            />
           </div>
         </main>
       </>

@@ -6,6 +6,7 @@ import { InspectionList } from "@/components/InspectionList";
 import { PhotoEvidence } from "@/components/PhotoEvidence";
 import { useInspectionForm } from "@/lib/useInspectionForm";
 import HomeLink from "@/components/HomeLink";
+import ShareButtons from "@/components/ShareButtons";
 
 export default function PreForm() {
   const form = useInspectionForm({
@@ -71,6 +72,12 @@ export default function PreForm() {
             <a className="btn btn-primary" href="/">
               Back to Home
             </a>
+            <ShareButtons
+              formType="Pre-Trip Inspection"
+              fields={fields}
+              items={items}
+              evidence={evidence}
+            />
           </div>
         </main>
       </>
