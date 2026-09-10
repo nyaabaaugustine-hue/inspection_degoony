@@ -5,6 +5,6 @@ export const baserow = {
     process.env.BASEROW_BASE_URL ||
     process.env.NEXT_PUBLIC_BASEROW_BASE_URL ||
     "https://api.baserow.io"
-  ).replace(/\/+$/, ""),
-  token: process.env.BASEROW_API_TOKEN || "",
+  ).replace(/\/+$/, "").trim(),
+  token: (process.env.BASEROW_API_TOKEN || "").trim(),
 };
