@@ -319,11 +319,96 @@ footer.submit-bar.single{max-width:712px;margin:0 auto;left:0;right:0;border-rad
 }
 .launch-label{font-size:21px;font-weight:800;letter-spacing:.03em;position:relative;z-index:1;}
 .launch-sub{font-size:12.5px;color:rgba(255,255,255,.82);font-weight:500;position:relative;z-index:1;}
+button.launch-btn{
+  font-family:inherit;width:100%;border:none;cursor:pointer;text-align:center;
+}
+button.launch-btn:disabled{cursor:default;}
 .launch-inspect{background:linear-gradient(150deg, #147B50 0%, var(--pine-900) 70%, var(--pine-950) 100%);}
 .launch-driver{
   background:linear-gradient(150deg, #C9861B 0%, #8A5A0B 55%, #4A300A 100%);
 }
 .launch-driver::before{border-color:rgba(255,255,255,.20);}
+.launch-fleet{
+  background:linear-gradient(150deg, #2E7396 0%, #12435E 55%, #071F33 100%);
+}
+.launch-fleet::before{border-color:rgba(255,255,255,.20);}
+
+/* ---------- Fleet MGT premium loader ---------- */
+.fleet-overlay{
+  position:fixed;inset:0;z-index:100;
+  display:flex;align-items:center;justify-content:center;
+  background:
+    radial-gradient(80% 60% at 50% -10%, rgba(45,138,98,.22) 0%, rgba(0,0,0,0) 60%),
+    radial-gradient(60% 50% at 88% 100%, rgba(185,121,8,.16) 0%, rgba(0,0,0,0) 55%),
+    linear-gradient(180deg, var(--pine-950) 0%, #04140D 100%);
+  opacity:0;visibility:hidden;
+  transition:opacity .3s ease, visibility .3s ease;
+}
+.fleet-overlay.enter{opacity:1;visibility:visible;}
+.fleet-overlay::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(rgba(255,255,255,.032) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.032) 1px, transparent 1px);
+  background-size:46px 46px;
+  -webkit-mask-image:radial-gradient(72% 72% at 50% 46%, #000 0%, transparent 100%);
+  mask-image:radial-gradient(72% 72% at 50% 46%, #000 0%, transparent 100%);
+}
+.fleet-overlay::after{
+  content:"";position:absolute;left:0;right:0;height:1px;pointer-events:none;
+  background:linear-gradient(90deg, transparent, rgba(231,205,110,.55), transparent);
+  box-shadow:0 0 20px 3px rgba(231,205,110,.22);
+  animation:fleetScan 1.8s ease-in-out infinite;
+}
+@keyframes fleetScan{
+  0%{top:16%;opacity:.4;}
+  45%{opacity:1;}
+  55%{opacity:1;}
+  100%{top:84%;opacity:.4;}
+}
+.fleet-loader{
+  display:flex;flex-direction:column;align-items:center;gap:26px;
+  animation:fleetRise .5s cubic-bezier(.2,.8,.2,1) .08s both;
+}
+@keyframes fleetRise{
+  from{opacity:0;transform:translateY(12px) scale(.97);}
+  to{opacity:1;transform:none;}
+}
+.fleet-emblem{position:relative;width:96px;height:96px;display:flex;align-items:center;justify-content:center;}
+.fleet-ring{
+  position:absolute;inset:0;border-radius:50%;
+  border:2px solid rgba(255,255,255,.08);
+  border-top-color:rgba(231,205,110,.9);
+  border-right-color:rgba(21,138,91,.8);
+  animation:fleetSpin 1.05s linear infinite;
+}
+.fleet-ring::after{
+  content:"";position:absolute;inset:9px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.05);
+}
+@keyframes fleetSpin{to{transform:rotate(360deg);}}
+.fleet-emblem-icon{
+  width:58px;height:58px;border-radius:18px;font-size:30px;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.10);box-shadow:0 1px 3px rgba(0,0,0,.25);
+}
+.fleet-bar-wrap{width:230px;height:4px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;}
+.fleet-bar{
+  height:100%;width:0%;border-radius:inherit;
+  background:linear-gradient(90deg, rgba(21,138,91,.9), rgba(231,205,110,.95));
+  box-shadow:0 0 12px rgba(231,205,110,.45);
+  animation:fleetFill 1.08s cubic-bezier(.65,0,.35,1) forwards;
+}
+@keyframes fleetFill{from{width:0%;}to{width:100%;}}
+.fleet-text{text-align:center;display:flex;flex-direction:column;gap:7px;}
+.fleet-title{
+  font-size:17px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+  color:#F4F7F4;
+}
+.fleet-status{font-size:12.5px;font-weight:600;color:#9DB5AC;animation:fleetPulse 1.5s ease-in-out infinite;}
+.fleet-dots{animation:fleetDots 1.5s steps(4,end) infinite;}
+@keyframes fleetPulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+@keyframes fleetDots{0%{opacity:.25;}50%{opacity:.25;}60%{opacity:1;}100%{opacity:1;}}
 
 /* ---------- Hub cards ---------- */
 .home-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px;}

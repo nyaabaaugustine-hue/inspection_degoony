@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Outbox from "@/components/Outbox";
+import FleetMgtButton from "@/components/FleetMgtButton";
 
 export default function Home() {
   return (
@@ -23,6 +24,7 @@ export default function Home() {
             <span className="launch-label">DRIVER REGISTRATION</span>
             <span className="launch-sub">Job application &amp; interview form</span>
           </Link>
+          <FleetMgtButton />
         </div>
         <div className="records-link">
           <Link href="/records" className="home-link-row">View saved submissions</Link>
