@@ -5,9 +5,15 @@ import { POST_ITEMS } from "@/lib/items";
 import { InspectionList } from "@/components/InspectionList";
 import { PhotoEvidence } from "@/components/PhotoEvidence";
 import { useInspectionForm } from "@/lib/useInspectionForm";
+import { listOpenPres } from "@/lib/comparison";
+import type { OpenPre } from "@/lib/comparison";
+import { INSPECTION_TABLE_ID } from "@/lib/config";
+import { FLEET_VEHICLES, DRIVER_NAMES } from "@/lib/fleet";
 import HomeLink from "@/components/HomeLink";
 import FormHeader from "@/components/FormHeader";
 import ShareButtons from "@/components/ShareButtons";
+import SignaturePad from "@/components/SignaturePad";
+import type { LocalPhoto } from "@/lib/images";
 
 export default function PostForm() {
   const form = useInspectionForm({
@@ -17,6 +23,7 @@ export default function PostForm() {
       returnTime: "",
       driver: "",
       vehicleNo: "",
+      deploymentId: "",
       endOdometer: "",
       batteryStatus: "",
       inspector: "",
@@ -32,6 +39,7 @@ export default function PostForm() {
       { field: "date", label: "Date", rule: (v) => !!v.trim() },
       { field: "driver", label: "Driver / Trainee", rule: (v) => !!v.trim() },
       { field: "vehicleNo", label: "Vehicle / Unit No.", rule: (v) => !!v.trim() },
+      { field: "deploymentId", label: "Deployment ID (from pre-trip)", rule: (v) => !!v.trim() },
       {
         field: "variance",
         label: "Mandatory variance question (accident/incident/change)",
@@ -40,20 +48,74 @@ export default function PostForm() {
     ],
   });
 
+  const { fields, setField, items, setItem, evidence, removeEvidence } = form;
+  const [done, setDone] = useState(false);
+  const [openPres, setOpenPres] = useState<OpenPre[]>([]);
+  const [presLoading, setPresLoading] = useState(true);
+  const [signature, setSignature] = useState<LocalPhoto | null>(null);
+
   useEffect(() => {
     form.restore(POST_ITEMS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { fields, setField, items, setItem, evidence, removeEvidence } = form;
-  const [done, setDone] = useState(false);
+  // Load open pre-deploy records from the database so the returning officer can
+  // pick the launch record from a dropdown instead of typing an ID.
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/rows?table=${INSPECTION_TABLE_ID}`);
+        if (!res.ok) throw new Error(`Server ${res.status}`);
+        const js = (await res.json()) as { results?: Record<string, unknown>[]; error?: string };
+        if (js.error) throw new Error(js.error);
+        if (!live) return;
+        setOpenPres(listOpenPres((js.results || []) as never[]));
+      } catch {
+        // Offline — the user can still type a deployment ID manually below.
+      } finally {
+        if (live) setPresLoading(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  // Pre-fill from a records-page "Open · awaiting post" click: the deployment
+  // ID, vehicle, driver and date of the pre-deploy record being closed out.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const apply = (key: string, val: string | null) => {
+      if (val) setField(key, val);
+    };
+    apply("deploymentId", q.get("deploymentId") ? q.get("deploymentId")!.toUpperCase() : null);
+    apply("vehicleNo", q.get("vehicleNo"));
+    apply("driver", q.get("driver"));
+    apply("date", q.get("date"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setField]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const ok = await form.submit();
+    const sigEvidence =
+      signature && signature.blob
+        ? [{ caption: "Driver signature", photo: signature }]
+        : undefined;
+    const ok = await form.submit(sigEvidence);
     if (ok) {
       setDone(true);
     }
+  }
+
+  // Picking a pre-deploy record links this post to it: carry over its
+  // deployment ID, vehicle, driver and date.
+  function onPickPre(pre: OpenPre | null) {
+    if (!pre) return;
+    setField("deploymentId", pre.deploymentId);
+    setField("vehicleNo", pre.vehicleNo);
+    setField("driver", pre.driver);
+    if (pre.date) setField("date", pre.date.slice(0, 10));
   }
 
   if (done) {
@@ -108,6 +170,48 @@ export default function PostForm() {
         <form onSubmit={onSubmit}>
           <div className="card tone-post">
             <FormHeader icon="🏁" title="Return details" subtitle="Record the vehicle condition on return" />
+            <div className="field">
+              <label>Select pre-deploy record (if returning a deployment)</label>
+              <select
+                className="deploy-select"
+                value=""
+                disabled={presLoading}
+                onChange={(e) => {
+                  const id = Number(e.target.value);
+                  onPickPre(openPres.find((p) => p.id === id) || null);
+                  e.target.value = "";
+                }}
+              >
+                <option value="">
+                  {presLoading
+                    ? "Loading pre-deploy records…"
+                    : openPres.length > 0
+                      ? "— Choose the pre-deploy inspection —"
+                      : "No open pre-deploy records"}
+                </option>
+                {openPres.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.driver || "Unknown driver"} — {p.vehicleNo || "?"}
+                    {p.deploymentId ? ` (${p.deploymentId})` : p.date ? ` (${p.date})` : ""}
+                  </option>
+                ))}
+              </select>
+              <span className="field-hint">
+                Picking a record auto-fills the deployment ID, vehicle and driver below. You can also
+                type the ID yourself.
+              </span>
+            </div>
+            <div className="field">
+              <label>Deployment ID (from pre-trip) *</label>
+              <input
+                type="text"
+                value={fields.deploymentId}
+                onChange={(e) => setField("deploymentId", e.target.value.toUpperCase())}
+                placeholder="e.g. EVG-260917-A3F"
+                className="mono-input"
+              />
+              <span className="field-hint">Enter the ID shown on the pre-trip success screen</span>
+            </div>
             <div className="row2">
               <div className="field">
                 <label>Date</label>
@@ -121,11 +225,33 @@ export default function PostForm() {
             <div className="row2">
               <div className="field">
                 <label>Driver / Trainee *</label>
-                <input type="text" value={fields.driver} onChange={(e) => setField("driver", e.target.value)} placeholder="Full name" />
+                <select
+                  className="fleet-select"
+                  value={fields.driver}
+                  onChange={(e) => setField("driver", e.target.value)}
+                >
+                  <option value="">Select driver…</option>
+                  {DRIVER_NAMES.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="field">
                 <label>Vehicle / Unit No. *</label>
-                <input type="text" value={fields.vehicleNo} onChange={(e) => setField("vehicleNo", e.target.value)} placeholder="e.g. DR-001" />
+                <select
+                  className="fleet-select"
+                  value={fields.vehicleNo}
+                  onChange={(e) => setField("vehicleNo", e.target.value)}
+                >
+                  <option value="">Select vehicle…</option>
+                  {FLEET_VEHICLES.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <div className="row2">
@@ -208,8 +334,12 @@ export default function PostForm() {
           <div className="card tone-post">
             <FormHeader icon="✍️" title="Post-trip driver certification" subtitle="I confirm I truthfully reported any accident, incident, near miss, defect, damage, or material change during my responsibility for this vehicle" />
             <div className="field">
-              <label>Driver signature (type full name)</label>
-              <input type="text" value={fields.driverCert} onChange={(e) => setField("driverCert", e.target.value)} />
+              <label>Driver signature (draw below, or type full name)</label>
+              <SignaturePad onSign={(photo) => setSignature(photo)} />
+            </div>
+            <div className="field">
+              <label>Driver name (typed)</label>
+              <input type="text" value={fields.driverCert} onChange={(e) => setField("driverCert", e.target.value)} placeholder="Full name" />
             </div>
           </div>
 

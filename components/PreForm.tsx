@@ -8,6 +8,9 @@ import { useInspectionForm } from "@/lib/useInspectionForm";
 import HomeLink from "@/components/HomeLink";
 import FormHeader from "@/components/FormHeader";
 import ShareButtons from "@/components/ShareButtons";
+import SignaturePad from "@/components/SignaturePad";
+import type { LocalPhoto } from "@/lib/images";
+import { FLEET_VEHICLES, DRIVER_NAMES } from "@/lib/fleet";
 
 export default function PreForm() {
   const form = useInspectionForm({
@@ -38,12 +41,17 @@ export default function PreForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { fields, setField, items, setItem, evidence, removeEvidence } = form;
+  const { fields, setField, items, setItem, evidence, removeEvidence, deploymentId } = form;
   const [done, setDone] = useState(false);
+  const [signature, setSignature] = useState<LocalPhoto | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const ok = await form.submit();
+    const sigEvidence =
+      signature && signature.blob
+        ? [{ caption: "Driver signature", photo: signature }]
+        : undefined;
+    const ok = await form.submit(sigEvidence);
     if (ok) {
       setDone(true);
     }
@@ -65,6 +73,13 @@ export default function PreForm() {
           <div className="card success-card">
             <div className="success-icon">✓</div>
             <h2>Pre-trip inspection submitted</h2>
+            {deploymentId && (
+              <div className="deployment-id-box">
+                <span className="deployment-id-label">Deployment ID</span>
+                <span className="deployment-id-value">{deploymentId}</span>
+                <span className="deployment-id-hint">Give this ID to the returning driver for post-trip linking</span>
+              </div>
+            )}
             <p>
               Your report for <strong>{fields.vehicleNo || "this vehicle"}</strong> (driver:{" "}
               {fields.driver || "—"}) on {fields.date || "today"} has been saved to the DEGOONY
@@ -114,11 +129,33 @@ export default function PreForm() {
             <div className="row2">
               <div className="field">
                 <label>Driver / Trainee *</label>
-                <input type="text" value={fields.driver} onChange={(e) => setField("driver", e.target.value)} placeholder="Full name" />
+                <select
+                  className="fleet-select"
+                  value={fields.driver}
+                  onChange={(e) => setField("driver", e.target.value)}
+                >
+                  <option value="">Select driver…</option>
+                  {DRIVER_NAMES.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="field">
                 <label>Vehicle / Unit No. *</label>
-                <input type="text" value={fields.vehicleNo} onChange={(e) => setField("vehicleNo", e.target.value)} placeholder="e.g. DR-001" />
+                <select
+                  className="fleet-select"
+                  value={fields.vehicleNo}
+                  onChange={(e) => setField("vehicleNo", e.target.value)}
+                >
+                  <option value="">Select vehicle…</option>
+                  {FLEET_VEHICLES.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <div className="row2">
@@ -180,8 +217,12 @@ export default function PreForm() {
           <div className="card tone-pre">
             <FormHeader icon="✍️" title="Driver certification" subtitle="I confirm I inspected this vehicle and truthfully recorded all defects, damage and abnormalities known at time of inspection" />
             <div className="field">
-              <label>Driver signature (type full name)</label>
-              <input type="text" value={fields.driverCert} onChange={(e) => setField("driverCert", e.target.value)} />
+              <label>Driver signature (draw below, or type full name)</label>
+              <SignaturePad onSign={(photo) => setSignature(photo)} />
+            </div>
+            <div className="field">
+              <label>Driver name (typed)</label>
+              <input type="text" value={fields.driverCert} onChange={(e) => setField("driverCert", e.target.value)} placeholder="Full name" />
             </div>
           </div>
 

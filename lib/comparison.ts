@@ -13,6 +13,7 @@ export type InspectionRow = {
   vehicle_no?: string;
   form_type?: string;
   items_report?: string;
+  deployment_id?: string;
 } & Record<string, unknown>;
 
 export type ParsedItem = { label: string; status: string; note: string };
@@ -217,6 +218,35 @@ export function comparePrePost(pre: InspectionRow, post: InspectionRow): Compare
 
 const ANOMALY_VERDICTS: Verdict[] = ["NEW_DEFECT", "PERSISTENT"];
 
+// Open pre-deploy records that still need their post-deploy inspection. Used by
+// the post form's dropdown so the driver/returning officer picks the launch
+// record instead of typing the deployment ID by hand.
+export type OpenPre = {
+  id: number;
+  deploymentId: string;
+  vehicleNo: string;
+  driver: string;
+  date: string;
+};
+
+export function listOpenPres(rows: InspectionRow[]): OpenPre[] {
+  const analysis = analyzeInspections(rows);
+  const out: OpenPre[] = [];
+  for (const r of rows) {
+    const id = Number(r.id) || 0;
+    if (!id) continue;
+    if (analysis.statusByRow[id]?.kind !== "open") continue;
+    out.push({
+      id,
+      deploymentId: String(r.deployment_id || "").trim().toUpperCase(),
+      vehicleNo: String(r.vehicle_no || "").trim(),
+      driver: String(r.driver_name || "").trim(),
+      date: String(r.date || r.created_on || "").trim(),
+    });
+  }
+  return out.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+}
+
 export function anomalyLabel(v: Verdict): string {
   switch (v) {
     case "NEW_DEFECT":
@@ -243,13 +273,35 @@ export function analyzeInspections(rows: InspectionRow[]): Analysis {
   const statusByRow: Record<number, InspStatus> = {};
   const matchByRow: Record<number, number> = {};
 
+  // Phase 1: pair by deployment_id (explicit link from pre→post)
   for (const pre of pres) {
     const preId = idOf(pre);
+    const depId = String(pre.deployment_id || "").trim().toUpperCase();
+    if (!depId) continue;
+    const post = posts.find(
+      (p) => String(p.deployment_id || "").trim().toUpperCase() === depId && !usedPosts.has(idOf(p)),
+    );
+    if (post) {
+      const postId = idOf(post);
+      usedPosts.add(postId);
+      panels[preId] = comparePrePost(pre, post);
+      const anomalies = panels[preId].filter((c) => ANOMALY_VERDICTS.includes(c.verdict)).length;
+      statusByRow[preId] = { kind: "compared", anomalies };
+      statusByRow[postId] = { kind: "compared", anomalies };
+      matchByRow[preId] = postId;
+      matchByRow[postId] = preId;
+    }
+  }
+
+  // Phase 2: pair remaining pres by vehicle_no + timestamp (legacy fallback)
+  for (const pre of pres) {
+    const preId = idOf(pre);
+    if (statusByRow[preId]) continue; // already paired
     const vehicle = norm(pre.vehicle_no);
-    if (!vehicle) continue; // can't pair without a vehicle id
+    if (!vehicle) continue;
     const stamp = rowStamp(pre);
     const post = posts.find(
-      (p) => norm(p.vehicle_no) === vehicle && !usedPosts.has(idOf(p)) && rowStamp(p) >= stamp,
+      (p) => !usedPosts.has(idOf(p)) && norm(p.vehicle_no) === vehicle && rowStamp(p) >= stamp,
     );
     if (post) {
       const postId = idOf(post);
@@ -264,6 +316,7 @@ export function analyzeInspections(rows: InspectionRow[]): Analysis {
       statusByRow[preId] = { kind: "open" };
     }
   }
+
   for (const post of posts) {
     if (!usedPosts.has(idOf(post))) statusByRow[idOf(post)] = { kind: "standalone" };
   }

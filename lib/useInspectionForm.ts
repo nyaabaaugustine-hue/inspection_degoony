@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ItemDef, ItemState } from "@/lib/items";
 import type { EvidencePhoto } from "@/components/PhotoEvidence";
-import { submitToBaserow, downloadBackup } from "@/lib/submit";
+import { submitToBaserow, downloadBackup, generateDeploymentId } from "@/lib/submit";
 import type { SubmitItems } from "@/lib/submit";
 import { INSPECTION_TABLE_ID, DRIVER_TABLE_ID, VEHICLE_CLIENT_TABLE_ID } from "@/lib/config";
 import { saveDraft, draftKey, pushOutbox, rememberDraftKey, loadLatestDraft, clearLatestDraft } from "@/lib/store";
@@ -91,6 +91,7 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [justQueued, setJustQueued] = useState(false);
+  const [deploymentId, setDeploymentId] = useState<string | null>(null);
 
   const setField = useCallback((k: string, v: string) => {
     setFields((p) => ({ ...p, [k]: v }));
@@ -200,7 +201,7 @@ export function useInspectionForm({ prefix, defaultFields, validation, extraFiel
     [fields, items, evidence, primaryPhoto, prefix, extraFields],
   );
 
-const submit = useCallback(async (): Promise<boolean> => {
+const submit = useCallback(async (extraEvidence?: EvidencePhoto[]): Promise<boolean> => {
     const errMsg = validate();
     if (errMsg) {
       setError(errMsg);
@@ -211,6 +212,17 @@ const submit = useCallback(async (): Promise<boolean> => {
     setJustQueued(false);
 
     const payload = buildPayload();
+    // Merge additional evidence (e.g. a drawn driver signature) passed at
+    // submit time, so freshly-captured data is included in this submission.
+    if (extraEvidence && extraEvidence.length > 0) {
+      payload.evidence = [...payload.evidence, ...extraEvidence];
+    }
+
+    // Generate deployment ID for pre-trip and inject into fields
+    if (prefix === "pre" && !payload.fields.deploymentId) {
+      payload.fields.deploymentId = generateDeploymentId();
+    }
+
     const result = await submitToBaserow(
       tableIdForPrefix(prefix),
       payload.fields,
@@ -223,15 +235,14 @@ const submit = useCallback(async (): Promise<boolean> => {
 
     if (result.ok) {
       clearLatestDraft(prefix);
-      // Photos intentionally stay saved on the device (IndexedDB) after a
-      // successful submit so staff can still share them via WhatsApp.
+      if (prefix === "pre" && payload.fields.deploymentId) {
+        setDeploymentId(payload.fields.deploymentId);
+      }
       setBusy(false);
       return true;
     }
 
     // Offline/failure → queue for retry and offer backup, never lose data.
-    // The outbox stores text + photo IDs; blobs stay in IndexedDB so images
-    // survive and can be re-sent later.
     pushOutbox(toStoredForm(payload, { prefix, defaultFields, validation, extraFields, subject, formType }));
     setJustQueued(true);
     setBusy(false);
@@ -259,6 +270,7 @@ const submit = useCallback(async (): Promise<boolean> => {
     error,
     busy,
     justQueued,
+    deploymentId,
     setJustQueued,
     setField,
     setItem,

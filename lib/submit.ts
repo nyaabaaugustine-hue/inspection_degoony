@@ -24,6 +24,19 @@ function tableIsInspections(tableId: number): boolean {
 const ITEM_LABELS: Record<string, string> = {};
 for (const it of [...PRE_ITEMS, ...POST_ITEMS]) ITEM_LABELS[it.id] = it.label;
 
+// Generate a unique deployment ID: EVG-YYMMDD-XXX
+// Used to explicitly pair a pre-trip inspection with its matching post-trip.
+export function generateDeploymentId(): string {
+  const now = new Date();
+  const y = String(now.getFullYear()).slice(2);
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let suffix = "";
+  for (let i = 0; i < 3; i++) suffix += chars[Math.floor(Math.random() * chars.length)];
+  return `EVG-${y}${m}${d}-${suffix}`;
+}
+
 // Upload one image blob to the server proxy, which forwards it to Baserow file
 // storage. Returns the full upstream file object (for a "photos" file field) or
 // null on failure.
@@ -112,7 +125,7 @@ function inspectionsTableRow(
       `${ITEM_LABELS[id] || id}: ${item.status || "—"}${item.note ? ` — ${item.note}` : ""}`,
     );
   }
-  return {
+  const row: Record<string, unknown> = {
     form_type: prefix === "pre" ? "Pre-Trip Inspection" : "Post-Trip Inspection",
     date: fields.date || "",
     start_time: fields.startTime || "",
@@ -130,6 +143,21 @@ function inspectionsTableRow(
     authorizer_name: fields.authorizerName || "",
     email_subject: subject || `${prefix === "pre" ? "PRE-TRIP" : "POST-TRIP"} — ${fields.vehicleNo || ""} — ${fields.driver || ""}`,
   };
+  if (prefix === "pre") {
+    row.deployment_id = fields.deploymentId || generateDeploymentId();
+  } else {
+    if (fields.deploymentId) row.deployment_id = fields.deploymentId;
+    row.return_time = fields.returnTime || "";
+    row.end_odometer = fields.endOdometer || "";
+    row.battery_status = fields.batteryStatus || "";
+    row.pre_state = fields.preState || "";
+    row.variance = fields.variance || "";
+    row.variance_details = fields.varianceDetails || "";
+    row.incident_report_no = fields.incidentReportNo || "";
+    row.disposition = fields.disposition || "";
+    row.reviewed_by = fields.reviewedBy || "";
+  }
+  return row;
 }
 
 // Send one submission to Baserow as a new row. Photos on the device are

@@ -96,6 +96,7 @@ type FieldDef = {
 };
 
 const INSP_FIELDS: FieldDef[] = [
+  { key: "deployment_id", type: "text" },
   { key: "driver_name", type: "text" },
   { key: "form_type", type: "select", options: ["Pre-Trip Inspection", "Post-Trip Inspection"] },
   { key: "date", type: "date" },
@@ -609,15 +610,25 @@ export default function RecordsPage() {
                     (() => {
                       const st = analysis.statusByRow[rowId];
                       if (!st) return null;
-                      if (st.kind === "open")
+                      if (st.kind === "open") {
+                        const preDeployment =
+                          asText(row.deployment_id) || "";
+                        const qp = new URLSearchParams({
+                          deploymentId: preDeployment,
+                          vehicleNo: asText(row.vehicle_no) || "",
+                          driver: asText(row.driver_name) || "",
+                          date: asText(row.date) || "",
+                        });
                         return (
-                          <span
-                            className="tag open"
-                            title="Post-deploy inspection not recorded yet for this vehicle"
+                          <Link
+                            href={`/post?${qp.toString()}`}
+                            className="tag open clickable"
+                            title="Record the post-deploy inspection for this pre-deploy record"
                           >
-                            Open · awaiting post
-                          </span>
+                            Open · awaiting post →
+                          </Link>
                         );
+                      }
                       if (st.kind === "compared")
                         return st.anomalies > 0 ? (
                           <span className="tag anomaly" title="Item-by-item comparison found anomalies">
@@ -639,6 +650,9 @@ export default function RecordsPage() {
                   )}
                 </div>
                 <div className="record-meta">
+                  {asText(row.deployment_id) && (
+                    <span className="record-chip mono-chip">{asText(row.deployment_id)}</span>
+                  )}
                   {asText(row.vehicle_no) && <span className="record-chip">{asText(row.vehicle_no)}</span>}
                   {asText(row.vehicle_number) && !asText(row.vehicle_no) && (
                     <span className="record-chip">{asText(row.vehicle_number)}</span>
