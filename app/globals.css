@@ -548,6 +548,7 @@ button.dash-tile{width:100%;}
 .dash-client{--tone:#5B3FA8;--tone-bg:#F0EAFB;--tone-line:rgba(91,63,168,.26);}
 .dash-fleet{--tone:#2E7396;--tone-bg:#E9F0FA;--tone-line:rgba(46,115,150,.28);}
 .dash-degoony{--tone:#C08A1E;--tone-bg:#FBF3DF;--tone-line:rgba(192,138,30,.34);}
+.dash-webmail{--tone:#1A6B5A;--tone-bg:#E0F5EF;--tone-line:rgba(26,107,90,.28);}
 main.home .outbox{max-height:140px;overflow-y:auto;}
 @media (max-width:420px){
   .dash-grid{gap:8px;}
@@ -662,6 +663,23 @@ main.home .outbox{max-height:140px;overflow-y:auto;}
 }
 .overlay-degoony .fleet-emblem-icon{
   background:linear-gradient(160deg, rgba(123,79,191,.35), rgba(192,138,30,.25));
+}
+
+/* ---------- WEBMAIL loader variant (teal-green mail pulse) ---------- */
+.overlay-webmail::after{
+  background:linear-gradient(90deg, transparent, rgba(26,107,90,.6), transparent);
+  box-shadow:0 0 20px 3px rgba(26,107,90,.28);
+}
+.overlay-webmail .fleet-ring{
+  border-top-color:rgba(231,205,110,.95);
+  border-right-color:rgba(26,107,90,.85);
+}
+.overlay-webmail .fleet-bar{
+  background:linear-gradient(90deg, rgba(26,107,90,.9), rgba(231,205,110,.95));
+  box-shadow:0 0 12px rgba(26,107,90,.5);
+}
+.overlay-webmail .fleet-emblem-icon{
+  background:linear-gradient(160deg, rgba(26,107,90,.35), rgba(231,205,110,.25));
 }
 
 /* ---------- Hub cards ---------- */

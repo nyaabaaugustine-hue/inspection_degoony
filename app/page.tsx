@@ -2,6 +2,7 @@ import Link from "next/link";
 import Outbox from "@/components/Outbox";
 import FleetMgtButton from "@/components/FleetMgtButton";
 import DegooMgtButton from "@/components/DegooMgtButton";
+import WebmailButton from "@/components/WebmailButton";
 import SubmissionsSummary from "@/components/SubmissionsSummary";
 
 export default function Home() {
@@ -40,6 +41,7 @@ export default function Home() {
           </Link>
           <FleetMgtButton />
           <DegooMgtButton />
+          <WebmailButton />
         </div>
       </main>
     </>
