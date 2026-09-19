@@ -9,7 +9,7 @@ export default function DegooMgtButton() {
       icon="💼"
       label="DEGOONY CLIENT MGT"
       sub="Degoony client management admin portal"
-      url="https://php-nyaabaaugustine-hue.wasmer.app/admin/"
+      url="https://degoony-crm.wasmer.app/admin/"
       overlayClass="overlay-degoony"
       loaderTitle="DEGOONY Client Management"
       loaderIcon="💼"
